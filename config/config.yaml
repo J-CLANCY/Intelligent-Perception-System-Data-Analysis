@@ -1,0 +1,64 @@
+#========================================================================================================================
+#YAML CONFIG FOR CELLULAR NETWORK MEASUREMENTS ANALYSIS CODE
+#========================================================================================================================
+#Sections:
+# - General
+# - Dash/Plotly
+# - Logging
+
+# GENERAL
+# ======================================================================================================================
+# General bits of config
+
+
+# DASH/PLOTLY
+# ======================================================================================================================
+# Config for the Dash web-app
+token: "pk.eyJ1Ijoiai1jbGFuY3kiLCJhIjoiY2t1NWNpdnQ5MW42dTJvbzF2dmh2c2trdyJ9.gmcQ9e5uDzxrtIO-R5uUbg"
+
+external_stylesheets: [
+    {
+        "href": "https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap",
+        "rel": "stylesheet",
+    },
+]
+
+# LOGGING
+# ======================================================================================================================
+# Below is the config for the Python built-in logger
+logging:
+  version: 1
+  formatters:
+    simple:
+      format: '%(asctime)s - %(module)s - Line %(lineno)d - %(levelname)s - %(message)s'
+  handlers:
+    file:
+      class: logging.FileHandler
+      level: DEBUG
+      formatter: simple
+      filename: logs/measurements.log
+    console:
+      class: logging.StreamHandler
+      level: INFO
+      formatter: simple
+      stream: ext://sys.stdout
+  loggers:
+    logger:
+      level: DEBUG
+      handlers: [ console, file ]
+      propagate: no
+    postproc:
+      level: DEBUG
+      handlers: [ console, file ]
+      propagate: no
+    results:
+      level: DEBUG
+      handlers: [ console, file ]
+      propagate: no
+    router:
+      level: DEBUG
+      handlers: [ console, file ]
+      propagate: no
+  root:
+    level: DEBUG
+    handlers: [ console, file ]

@@ -1,0 +1,97 @@
+body {
+    font-family: "Lato", sans-serif;
+    margin: 0;
+    background-color: #EDEDED;
+    color: #000000
+}
+
+.header {
+    background-color: #222222;
+    height: 238px;
+    padding: 16px 0 0 0;
+}
+
+.header-author {
+    color: #FFFFFF;
+    font-size: 18px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.header-title {
+    color: #FFFFFF;
+    font-size: 48px;
+    font-weight: bold;
+    text-align: center;
+    margin: 0 auto;
+}
+
+.header-description {
+    color: #CFCFCF;
+    margin: 4px auto;
+    text-align: center;
+    max-width: 384px;
+}
+
+.wrapper {
+    margin-right: auto;
+    margin-left: auto;
+    max-width: 1024px;
+    padding-right: 10px;
+    padding-left: 10px;
+    margin-top: 32px;
+}
+
+.card {
+    margin-bottom: 24px;
+    box-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.18);
+}
+
+.menu {
+    height: 112px;
+    width: 912px;
+    display: flex;
+    flex-basis: 256px;
+    justify-content: space-evenly;
+    padding-top: 24px;
+    margin: -80px auto 0 auto;
+    background-color: #FFFFFF;
+    box-shadow: 0 4px 6px 0 rgba(0, 0, 0, 0.18);
+}
+
+.drop {
+    display: flex;
+    flex-direction: column;
+    flex-basis: 256px;
+}
+
+.Select-control {
+    width: 256px;
+    height: 48px;
+}
+
+.Select--single > .Select-control .Select-value, .Select-placeholder {
+    line-height: 48px;
+}
+
+.Select--multi .Select-value-label {
+    line-height: 32px;
+}
+
+.VirtualizedSelectOption {
+    background-color: white;
+    color: black;
+ }
+
+.menu-title {
+    margin-bottom: 6px;
+    font-weight: bold;
+    color: #079A82;
+}
+
+.fig-title {
+    margin-bottom: 6px;
+    font-size: 24px;
+    font-weight: bold;
+    color: #079A82;
+}
