@@ -1,23 +1,20 @@
-import logging
 import pathlib
 from datetime import datetime
+import logging
+from logging.config import dictConfig
 
-import dash as dash
 import yaml
 import json
 import pandas as pd
 
-import dash
 import plotly.express as px
-from dash import dash_table
-from dash import dcc, ctx
-from dash import html
-from dash.dependencies import Input, Output, State, MATCH
+import dash
+from dash import dash_table, dcc, html
+
 
 # ======================================================================================================================
 # VARIABLES AND SETUP HERE - MAIN METHOD AT BOTTOM
 # ======================================================================================================================
-from logging.config import dictConfig
 
 
 def setup():
@@ -42,6 +39,9 @@ config, logger = setup()
 # IMPORT FUNCTIONS
 # ======================================================================================================================
 def import_raw():
+    """ Imports the raw data from file, separates the two different radios, smushes it into either a dict or Pandas
+    DataFrame. Returns the below dict containing all the data."""
+
     data = {
         "latency": {
             "subsix": {},
@@ -53,7 +53,7 @@ def import_raw():
         },
     }
 
-    # Path to where all the data is stored for this
+    # Path to where all the data is stored (likely somewhere on the SharePoint now)
     oneDrivePath = pathlib.Path(rf"C:\Users\Joseph Clancy\OneDrive - National University of Ireland, Galway\Thesis "
                                 rf"Stuff\P4")
 
@@ -68,12 +68,12 @@ def import_raw():
             data["latency"]["subsix"][data_file_path.stem] = data_file.readlines()
 
     # Import throughput tests
-    throughput_dir = sub_six_dir/ "main_tests"
+    throughput_dir = sub_six_dir / "main_tests"
     for data_file_path in throughput_dir.iterdir():
         with open(data_file_path, "r") as data_file:
             try:
                 data["throughput"]["subsix"][data_file_path.stem] = json.load(data_file)
-            except:
+            except json.JSONDecodeError:
                 data["throughput"]["subsix"][data_file_path.stem] = [json.loads(line) for line in data_file]
 
     # mmWave Data
@@ -97,6 +97,10 @@ def import_raw():
 # PROCESSING FUNCTIONS
 # ======================================================================================================================
 def process_latency(raw_lat_data):
+    """Given the raw latency data in dictionary format, this function extracts the latency and jitter information
+    from raw ping logs for the Sub-6GHz radio and simply handles the DataFrame from the mmWave radio.
+
+    At the end, a big dirty awful dict is returned with all the stats and dataframes for both radios."""
 
     # Sub-6GHz Latency Data
     # =================================================
@@ -105,23 +109,23 @@ def process_latency(raw_lat_data):
         for line in file_data:
             if "time=" in line:
                 line = line.split(" ")
-                latencies.append(float(line[6].replace("time=", ""))/2)
+                latencies.append(float(line[6].replace("time=", "")) / 2)
 
     subsix_lat_df = pd.DataFrame(latencies, columns=["Latency"])
 
-    df = pd.read_csv("new_df.csv")
+    df = pd.read_csv("output/csvs/new_df.csv")
     subsix_lat_df = pd.concat([subsix_lat_df, df])
 
     subsix_jit_list = []
     for index, value in subsix_lat_df["Latency"].items():
         if index >= 1:
-            prev = subsix_lat_df["Latency"].iloc[index-1]
+            prev = subsix_lat_df["Latency"].iloc[index - 1]
             subsix_jit_list.append(abs(value - prev))
 
     subsix_jit_df = pd.DataFrame(subsix_jit_list, columns=["Jitter"])
 
-    subsix_less_than_20 = subsix_jit_df[subsix_jit_df["Jitter"] < 20.0]
-    print(f"Sub-6GHz Jitter <20ms: {(len(subsix_less_than_20.index) / len(subsix_jit_df.index))}")
+    # subsix_less_than_20 = subsix_jit_df[subsix_jit_df["Jitter"] < 20.0]
+    # print(f"Sub-6GHz Jitter <20ms: {(len(subsix_less_than_20.index) / len(subsix_jit_df.index))}")
 
     subsix_lat_stats = subsix_lat_df.describe().to_dict()
     subsix_lat_stats["Latency"]["skew"] = subsix_lat_df["Latency"].skew()
@@ -163,8 +167,8 @@ def process_latency(raw_lat_data):
     mmwave_jit_df = pd.DataFrame(mmwave_jit_list, columns=["Jitter"])
     mmwave_jit_df["Jitter"].replace(0.0, 0.000489, inplace=True)
 
-    mmwave_less_than_20 = mmwave_jit_df[mmwave_jit_df["Jitter"] < 20.0]
-    print(f"mmWave Jitter <20ms: {(len(mmwave_less_than_20.index) / len(mmwave_jit_df.index))}")
+    # mmwave_less_than_20 = mmwave_jit_df[mmwave_jit_df["Jitter"] < 20.0]
+    # print(f"mmWave Jitter <20ms: {(len(mmwave_less_than_20.index) / len(mmwave_jit_df.index))}")
 
     mmwave_lat_stats = mmwave_lat_df.describe().to_dict()
     mmwave_lat_stats["Latency"]["skew"] = mmwave_lat_df["Latency"].skew()
@@ -212,6 +216,10 @@ def process_latency(raw_lat_data):
 
 
 def process_throughput(raw_thru_data):
+    """Given the raw latency data in dictionary format, this function extracts the latency and jitter information
+    from the iPerf logs for the Sub-6GHz radio and simply handles the DataFrame from the mmWave radio.
+
+    At the end, a big dirty awful dict is returned with all the stats and dataframes for both radios."""
 
     # Sub-6GHz Throughput Data
     # =================================================
@@ -232,16 +240,16 @@ def process_throughput(raw_thru_data):
                         temp_dict[param] = interval["sum"][param]
                     useful_data.append(temp_dict)
 
-        def fix_rows(row, rate):
-            if rate == "12.5kb":
+        def fix_rows(row, drate):
+            if drate == "12.5kb":
                 if row["packets"] == 2:
                     row["bytes"] = row["bytes"] / 2
                     row["bits_per_second"] = row["bits_per_second"] / 2
-            elif rate == "25kb":
+            elif drate == "25kb":
                 if row["packets"] == 3:
                     row["bytes"] = row["bytes"] * (2 / 3)
                     row["bits_per_second"] = row["bits_per_second"] * (2 / 3)
-            elif rate == "50kb":
+            elif drate == "50kb":
                 if row["packets"] == 6:
                     row["bytes"] = row["bytes"] * (2 / 3)
                     row["bits_per_second"] = row["bits_per_second"] * (2 / 3)
@@ -252,9 +260,9 @@ def process_throughput(raw_thru_data):
 
         iperf_df = pd.DataFrame.from_records(useful_data)
         iperf_df = iperf_df.apply(lambda row: fix_rows(row, rate), axis=1)
-        iperf_df["kilobits_per_second"] = iperf_df.apply(lambda row: row["bits_per_second"]/1000, axis=1)
-        iperf_df["megabits_per_second"] = iperf_df.apply(lambda row: row["bits_per_second"]/1000000, axis=1)
-        #iperf_df = iperf_df[iperf_df["kilobits_per_second"] < 13.00]
+        iperf_df["kilobits_per_second"] = iperf_df.apply(lambda row: row["bits_per_second"] / 1000, axis=1)
+        iperf_df["megabits_per_second"] = iperf_df.apply(lambda row: row["bits_per_second"] / 1000000, axis=1)
+        # iperf_df = iperf_df[iperf_df["kilobits_per_second"] < 13.00]
 
         stats = iperf_df["megabits_per_second"].describe().to_dict()
         stats["skew"] = iperf_df["megabits_per_second"].skew()
@@ -284,8 +292,9 @@ def process_throughput(raw_thru_data):
 
     mmwave_thru_df = pd.concat(mmwave_df_list)
     mmwave_thru_df.rename(columns={"throughput": "Throughput"}, inplace=True)
-    mmwave_thru_df["Throughput"] = mmwave_thru_df.apply(lambda row: row["Throughput"]/1000000, axis=1)
-    mmwave_thru_df["data_rate"] = pd.Categorical(mmwave_thru_df["data_rate"], ["50Mb", "100Mb", "150Mb", "500Mb", "800Mb"])
+    mmwave_thru_df["Throughput"] = mmwave_thru_df.apply(lambda row: row["Throughput"] / 1000000, axis=1)
+    mmwave_thru_df["data_rate"] = pd.Categorical(mmwave_thru_df["data_rate"],
+                                                 ["50Mb", "100Mb", "150Mb", "500Mb", "800Mb"])
     mmwave_thru_df.sort_values("data_rate", inplace=True)
     mmwave_thru_df.reset_index(inplace=True)
     mmwave_thru_df.to_csv("mmwave_thru_df.csv")
@@ -315,6 +324,7 @@ def process_throughput(raw_thru_data):
 
 
 def process_raw(data):
+    """This is just a wrapper function to split off the processing tasks to other functions."""
 
     proc_lat_data, proc_jit_data = process_latency(data["latency"])
 
@@ -327,6 +337,11 @@ def process_raw(data):
     return proc_data
 
 
+# ======================================================================================================================
+# MAIN BODY OF CODE
+# ======================================================================================================================
+
+# Start the clock!
 start = datetime.now()
 logger.info("Starting post-processing @ " + start.strftime('%Y/%m/%d %H:%M:%S') + "...")
 
@@ -344,19 +359,23 @@ logger.info("Finished post-processing @ " + finish.strftime('%Y/%m/%d %H:%M:%S')
 exec_time = finish - start
 logger.info("Execution time: " + str(exec_time))
 
-# LATENCY
+# ======================================================================================================================
+# PLOTLY CODE TO GENERATE GRAPHS
+# ======================================================================================================================
+
+# LATENCY ECDF PLOT FOR BOTH RADIOS
 lat_ecdf = px.ecdf(
-                processed_data["latency"]["both"],
-                x="Latency",
-                color="radio",
-                labels={
-                    "Latency": "End-to-End Delay (ms)",
-                    "percent": "Percent (%)"
-                },
-                ecdfnorm='percent',
-                marginal="box",
-                log_x=True
-            )
+    processed_data["latency"]["both"],
+    x="Latency",
+    color="radio",
+    labels={
+        "Latency": "End-to-End Delay (ms)",
+        "percent": "Percent (%)"
+    },
+    ecdfnorm='percent',
+    marginal="box",
+    log_x=True
+)
 lat_ecdf.update_layout(
     font_family="Times New Roman", font_size=20,
     font_color="black",
@@ -367,19 +386,19 @@ lat_ecdf.update_yaxes(title_text="Percent (%)", row=1, col=1)
 
 lat_ecdf.write_image("output/images/lat_ecdf.pdf", width=3.5 * 300, height=2 * 300, scale=1)
 
-# JITTER
+# JITTER ECDF PLOT FOR BOTH RADIOS
 jit_ecdf = px.ecdf(
-                processed_data["jitter"]["both"],
-                x="Jitter",
-                color="radio",
-                labels={
-                    "Jitter": "End-to-End Jitter (ms)",
-                    "percent": "Percent (%)"
-                },
-                ecdfnorm='percent',
-                marginal="box",
-                log_x=True
-            )
+    processed_data["jitter"]["both"],
+    x="Jitter",
+    color="radio",
+    labels={
+        "Jitter": "End-to-End Jitter (ms)",
+        "percent": "Percent (%)"
+    },
+    ecdfnorm='percent',
+    marginal="box",
+    log_x=True
+)
 jit_ecdf.update_layout(
     font_family="Times New Roman", font_size=20,
     font_color="black",
@@ -390,32 +409,32 @@ jit_ecdf.update_yaxes(title_text="Percent (%)", row=1, col=1)
 
 jit_ecdf.write_image("output/images/jit_ecdf.pdf", width=3.5 * 300, height=2 * 300, scale=1)
 
-# OBJECT DATA THROUGHPUT
+# OBJECT DATA THROUGHPUT FOR SUB-6GHZ RADIO
 thru_df = processed_data["throughput"]["subsix"]["DataFrame"]
 thru_color_map = {
-           "12.5kb": '#636EFA',
-            "25kb": '#EF553B',
-            "50kb":  '#00CC96',
-            "8Mb":  '#AB63FA',
-            "50Mb":  '#FFA15A',
-            "150Mb":  '#19D3F3',
-            "800Mb": '#FF6692'}
+    "12.5kb": '#636EFA',
+    "25kb": '#EF553B',
+    "50kb": '#00CC96',
+    "8Mb": '#AB63FA',
+    "50Mb": '#FFA15A',
+    "150Mb": '#19D3F3',
+    "800Mb": '#FF6692'}
 obj_ecdf = px.ecdf(
-         thru_df[thru_df["data_rate"].isin(["12.5kb", "25kb", "50kb"])],
-         x="kilobits_per_second",
-         color="data_rate",
-         color_discrete_map=thru_color_map,
-         labels={
-             "kilobits_per_second": "Throughput (kbps)",
-             "megabits_per_second": "Throughput (Mbps)",
-             "percent": "Percent (%)"
-         },
-         ecdfnorm='percent',
-         marginal="box",
-        facet_col="data_rate",
-        facet_col_spacing=0.05,
-        log_x=True
-     )
+    thru_df[thru_df["data_rate"].isin(["12.5kb", "25kb", "50kb"])],
+    x="kilobits_per_second",
+    color="data_rate",
+    color_discrete_map=thru_color_map,
+    labels={
+        "kilobits_per_second": "Throughput (kbps)",
+        "megabits_per_second": "Throughput (Mbps)",
+        "percent": "Percent (%)"
+    },
+    ecdfnorm='percent',
+    marginal="box",
+    facet_col="data_rate",
+    facet_col_spacing=0.05,
+    log_x=True
+)
 obj_ecdf.update_layout(
     font_family="Times New Roman", font_size=20,
     font_color="black",
@@ -427,23 +446,24 @@ obj_ecdf.update_yaxes(title_text="Percent (%)", row=1, col=1)
 
 obj_ecdf.write_image(f"output/images/obj_ecdf.pdf", width=3.5 * 400, height=2 * 300, scale=1)
 
+# SENSOR DATA THROUGHPUT FOR SUB-6GHZ RADIO
 sens_ecdf = px.ecdf(
-         thru_df[thru_df["data_rate"].isin(["8Mb", "50Mb", "150Mb", "800Mb"])],
-         x="megabits_per_second",
-         color="data_rate",
-         color_discrete_map=thru_color_map,
-         labels={
-             "kilobits_per_second": "Throughput (kbps)",
-             "megabits_per_second": "Throughput (Mbps)",
-             "percent": "Percent (%)"
-         },
-         ecdfnorm='percent',
-         marginal="box",
-        facet_col="data_rate",
-        facet_col_spacing=0.025,
-        facet_col_wrap=2,
-        log_x=True
-     )
+    thru_df[thru_df["data_rate"].isin(["8Mb", "50Mb", "150Mb", "800Mb"])],
+    x="megabits_per_second",
+    color="data_rate",
+    color_discrete_map=thru_color_map,
+    labels={
+        "kilobits_per_second": "Throughput (kbps)",
+        "megabits_per_second": "Throughput (Mbps)",
+        "percent": "Percent (%)"
+    },
+    ecdfnorm='percent',
+    marginal="box",
+    facet_col="data_rate",
+    facet_col_spacing=0.025,
+    facet_col_wrap=2,
+    log_x=True
+)
 sens_ecdf.update_layout(
     font_family="Times New Roman", font_size=20,
     font_color="black",
@@ -455,22 +475,23 @@ sens_ecdf.update_yaxes(title_text="Percent (%)", row=1, col=1)
 
 sens_ecdf.write_image(f"output/images/sens_ecdf.pdf", width=3.5 * 400, height=2 * 300, scale=1)
 
+# SENSOR DATA THROUGHPUT FOR MMWAVE RADIO
 mmwave_df = processed_data["throughput"]["mmwave"]["DataFrame"]
 mmwave_ecdf = px.ecdf(
-         mmwave_df[mmwave_df["data_rate"].isin(["8Mb", "50Mb", "150Mb", "800Mb"])],
-         x="Throughput",
-         color="data_rate",
-         color_discrete_map=thru_color_map,
-         labels={
-             "Throughput": "Throughput (Mbps)",
-             "percent": "Percent (%)"
-         },
-         ecdfnorm='percent',
-         marginal="box",
-        facet_col="data_rate",
-        facet_col_spacing=0.025,
-        log_x=True
-     )
+    mmwave_df[mmwave_df["data_rate"].isin(["8Mb", "50Mb", "150Mb", "800Mb"])],
+    x="Throughput",
+    color="data_rate",
+    color_discrete_map=thru_color_map,
+    labels={
+        "Throughput": "Throughput (Mbps)",
+        "percent": "Percent (%)"
+    },
+    ecdfnorm='percent',
+    marginal="box",
+    facet_col="data_rate",
+    facet_col_spacing=0.025,
+    log_x=True
+)
 mmwave_ecdf.update_layout(
     font_family="Times New Roman", font_size=20,
     font_color="black",
@@ -482,43 +503,9 @@ mmwave_ecdf.update_yaxes(title_text="Percent (%)", row=1, col=1)
 
 mmwave_ecdf.write_image(f"output/images/mmwave_ecdf.pdf", width=3.5 * 400, height=2 * 300, scale=1)
 
-
-
-
-# data_rates = ["12.5kb", "25kb", "50kb", "8Mb", "50Mb", "150Mb", "800Mb"]
-# thru_ecdfs = []
-
-# for rate in data_rates:
-#     if "kb" in rate:
-#         x_axis = "kilobits_per_second"
-#     elif "Mb" in rate:
-#         x_axis = "megabits_per_second"
-#     ecdf = px.ecdf(
-#                 thru_df[thru_df["data_rate"] == rate],
-#                 x=x_axis,
-#                 color="data_rate",
-#                 color_discrete_map=thru_color_map,
-#                 labels={
-#                     "kilobits_per_second": "Throughput (kbps)",
-#                     "megabits_per_second": "Throughput (Mbps)",
-#                     "percent": "Percent (%)"
-#                 },
-#                 ecdfnorm='percent',
-#                 marginal="box",
-#                 log_x=True
-#             )
-#     ecdf.update_layout(
-#     font_family="Times New Roman", font_size=20,
-#     font_color="black",
-#     margin_l=5, margin_t=5, margin_b=5, margin_r=5
-#     )
-#     ecdf.update_xaxes(matches=None)
-#     ecdf.update_layout(showlegend=False)
-#     ecdf.update_yaxes(title_text="Percent (%)", row=1, col=1)
-#
-#     ecdf.write_image(f"output/images/{rate}_ecdf.pdf", width=3.5 * 400, height=2 * 300, scale=1)
-#     thru_ecdfs.append(ecdf)
-
+# ======================================================================================================================
+# DASH/PLOTLY WEB-APP SETUP
+# ======================================================================================================================
 
 # App instantiation/configuration
 app = dash.Dash(__name__, external_stylesheets=config["external_stylesheets"], suppress_callback_exceptions=True)
@@ -538,63 +525,62 @@ app.layout = html.Div([
     ),
     # Wrapper for the main body of the page containing graphs
     html.Div(id='view-container', children=[
-        
+
         # Combined Data Visuals
         # =====================================================
         # LATENCY
         html.Div(children=f"End-to-End Delay Statistics (ms)", className="menu-title"),
-            dash_table.DataTable(
-                id=f"both_lat_stats_table",
-                columns=[{"name": i, "id": i, "type": "numeric", "format": {"specifier": ',.2f'}} for i in
-                         processed_data["latency"]["subsix"]["Statistics"].columns],
-                data=[processed_data["latency"]["subsix"]["Statistics"].to_dict(orient="index")["Latency"],
-                      processed_data["latency"]["mmwave"]["Statistics"].to_dict(orient="index")["Latency"]],
-                style_cell=dict(textAlign='right'),
-                style_header=dict(backgroundColor="lightGrey"),
-                style_as_list_view=True,
-                style_cell_conditional=[
-                    {
-                        'if': {'column_id': 'View'},
-                        'textAlign': 'left'
-                    }
-                ]
-             ),
+        dash_table.DataTable(
+            id=f"both_lat_stats_table",
+            columns=[{"name": i, "id": i, "type": "numeric", "format": {"specifier": ',.2f'}} for i in
+                     processed_data["latency"]["subsix"]["Statistics"].columns],
+            data=[processed_data["latency"]["subsix"]["Statistics"].to_dict(orient="index")["Latency"],
+                  processed_data["latency"]["mmwave"]["Statistics"].to_dict(orient="index")["Latency"]],
+            style_cell=dict(textAlign='right'),
+            style_header=dict(backgroundColor="lightGrey"),
+            style_as_list_view=True,
+            style_cell_conditional=[
+                {
+                    'if': {'column_id': 'View'},
+                    'textAlign': 'left'
+                }
+            ]
+        ),
         html.Div(children=f"End-to-End Delay eCDF", className="menu-title"),
-            dcc.Graph(id="both_lat_cdf", figure=lat_ecdf),
+        dcc.Graph(id="both_lat_cdf", figure=lat_ecdf),
         html.Div(children=f"End-to-End Delay Histogram", className="menu-title"),
-            dcc.Graph(id="both_lat_hist", figure=px.histogram(
-                processed_data["latency"]["both"],
-                x="Latency",
-                color="radio",
-                labels={
-                    "Latency": "End-to-End Delay (ms)",
-                },
-                nbins=250,
-                marginal="box",
-                log_x=True
-            )),
+        dcc.Graph(id="both_lat_hist", figure=px.histogram(
+            processed_data["latency"]["both"],
+            x="Latency",
+            color="radio",
+            labels={
+                "Latency": "End-to-End Delay (ms)",
+            },
+            nbins=250,
+            marginal="box",
+            log_x=True
+        )),
 
         # JITTER
         html.Div(children=f"End-to-End Jitter Statistics (ms)", className="menu-title"),
-            dash_table.DataTable(
-                id=f"both_jit_stats_table",
-                columns=[{"name": i, "id": i, "type": "numeric", "format": {"specifier": ',.2f'}} for i in
-                         processed_data["latency"]["subsix"]["Statistics"].columns],
-                data=[processed_data["jitter"]["subsix"]["Statistics"].to_dict(orient="index")["Jitter"],
-                      processed_data["jitter"]["mmwave"]["Statistics"].to_dict(orient="index")["Jitter"]],
-                style_cell=dict(textAlign='right'),
-                style_header=dict(backgroundColor="lightGrey"),
-                style_as_list_view=True,
-                style_cell_conditional=[
-                    {
-                        'if': {'column_id': 'View'},
-                        'textAlign': 'left'
-                    }
-                ]
-             ),
+        dash_table.DataTable(
+            id=f"both_jit_stats_table",
+            columns=[{"name": i, "id": i, "type": "numeric", "format": {"specifier": ',.2f'}} for i in
+                     processed_data["latency"]["subsix"]["Statistics"].columns],
+            data=[processed_data["jitter"]["subsix"]["Statistics"].to_dict(orient="index")["Jitter"],
+                  processed_data["jitter"]["mmwave"]["Statistics"].to_dict(orient="index")["Jitter"]],
+            style_cell=dict(textAlign='right'),
+            style_header=dict(backgroundColor="lightGrey"),
+            style_as_list_view=True,
+            style_cell_conditional=[
+                {
+                    'if': {'column_id': 'View'},
+                    'textAlign': 'left'
+                }
+            ]
+        ),
         html.Div(children=f"End-to-End Jitter eCDF", className="menu-title"),
-            dcc.Graph(id="both_jit_cdf", figure=jit_ecdf),
-
+        dcc.Graph(id="both_jit_cdf", figure=jit_ecdf),
 
         # OBJECT DATA
         html.Div(children=f"Object Data Throughput Statistics (kbps)", className="menu-title"),
@@ -614,11 +600,11 @@ app.layout = html.Div([
             ]
         ),
         html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
-            dcc.Graph(id="obj_cdf", figure=obj_ecdf),
+        dcc.Graph(id="obj_cdf", figure=obj_ecdf),
         html.Div(children=f"Sensor Data Throughput eCDF", className="menu-title"),
-            dcc.Graph(id="sens_cdf", figure=sens_ecdf),
+        dcc.Graph(id="sens_cdf", figure=sens_ecdf),
         html.Div(children=f"mmWave Data Throughput eCDF", className="menu-title"),
-            dcc.Graph(id="mmWave_cdf", figure=mmwave_ecdf),
+        dcc.Graph(id="mmWave_cdf", figure=mmwave_ecdf),
         # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
         #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[0]),
         # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
@@ -633,8 +619,7 @@ app.layout = html.Div([
         #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[5]),
         # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
         #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[6]),
-        
-        
+
         # Sub-6GHz Data Visuals
         # =====================================================
         html.Div(children=f"Sub-6GHz End-to-End Delay Statistics (ms)", className="menu-title"),
@@ -652,7 +637,7 @@ app.layout = html.Div([
                     'textAlign': 'left'
                 }
             ]
-         ),
+        ),
         html.Div(children=f"Sub-6GHz End-to-End Delay eCDF", className="menu-title"),
         dcc.Graph(id="subsix_lat_cdf", figure=px.ecdf(
             processed_data["latency"]["subsix"]["DataFrame"],
@@ -690,7 +675,7 @@ app.layout = html.Div([
                     'textAlign': 'left'
                 }
             ]
-         ),
+        ),
 
         html.Div(children=f"Sub-6GHz Throughput Line Chart", className="menu-title"),
         dcc.Graph(id="subsix_thru_line", figure=px.line(
@@ -710,7 +695,7 @@ app.layout = html.Div([
         )),
 
         # mmWave Data Visuals
-        #=====================================================
+        # =====================================================
         html.Div(children=f"mmwave End-to-End Delay Statistics (ms)", className="menu-title"),
         dash_table.DataTable(
             id=f"mmwave_lat_stats_table",
@@ -726,7 +711,7 @@ app.layout = html.Div([
                     'textAlign': 'left'
                 }
             ]
-         ),
+        ),
         html.Div(children=f"mmwave End-to-End Delay eCDF", className="menu-title"),
         dcc.Graph(id="mmwave_lat_cdf", figure=px.ecdf(
             processed_data["latency"]["mmwave"]["DataFrame"],
@@ -765,7 +750,7 @@ app.layout = html.Div([
                     'textAlign': 'left'
                 }
             ]
-         ),
+        ),
 
         html.Div(children=f"mmwave Throughput Line Chart", className="menu-title"),
         dcc.Graph(id="mmwave_thru_line", figure=px.line(
@@ -783,7 +768,6 @@ app.layout = html.Div([
             barmode="overlay",
             nbins=100,
         )),
-        
 
     ], className="wrapper"),
 

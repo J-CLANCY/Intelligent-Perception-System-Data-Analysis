@@ -4,7 +4,7 @@ from scipy.stats import foldcauchy
 import matplotlib.pyplot as plt
 fig, ax = plt.subplots(1, 1)
 
-df = pd.read_csv("mmwave_lat_df.csv")
+df = pd.read_csv("output/csvs/mmwave_lat_df.csv")
 #f = Fitter(df["Latency"])
 #f.fit()
 #results = f.summary()
