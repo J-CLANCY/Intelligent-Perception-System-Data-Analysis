@@ -1,6 +1,6 @@
 # Intelligent Perception System (IPS) Data Analysis
 
-This repository was created to analyse and visual the data behind my fourth paper as part of my Ph.D. programme. The details of this work can be found in my fourth paper entitled "Evaluating the Feasibility of Intelligent Blind Road Junction V2I Deployments" [1]. The Python code in this repository simply reads in the raw data from the cellular network measurement runs for the IPS and produces the necessary statistics and graphs for reporting in the paper.
+This repository was created to analyse and visual the data behind my fourth paper as part of my Ph.D. programme. The details of this work can be found in my fourth paper entitled _"Evaluating the Feasibility of Intelligent Blind Road Junction V2I Deployments"_ [1]. The Python code in this repository simply reads in the raw data from the cellular network measurement runs for the IPS and produces the necessary statistics and graphs for reporting in the paper.
 
 ## Project Structure
 
