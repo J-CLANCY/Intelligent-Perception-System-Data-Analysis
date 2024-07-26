@@ -1,7 +1,8 @@
 import pathlib
-from datetime import datetime
 import logging
 from logging.config import dictConfig
+from datetime import datetime
+
 
 import yaml
 import json
@@ -54,12 +55,11 @@ def import_raw():
     }
 
     # Path to where all the data is stored (likely somewhere on the SharePoint now)
-    oneDrivePath = pathlib.Path(rf"C:\Users\Joseph Clancy\OneDrive - National University of Ireland, Galway\Thesis "
-                                rf"Stuff\P4")
+    oneDrivePath = pathlib.Path(rf"<PATH_TO_DATA>")
 
     # Sub-6GHz Data
     # ===============================================================
-    sub_six_dir = oneDrivePath / "Cork_Experiments_17_02_23\Data"
+    sub_six_dir = oneDrivePath / "<SUB-6GHZ-DATA-LOCATION>"
 
     # Import latency data
     latency_dir = sub_six_dir / "ping_tests"
@@ -78,7 +78,7 @@ def import_raw():
 
     # mmWave Data
     # ===============================================================
-    mmwave_dir = oneDrivePath / "Bray_Experiments\output\csv_data"
+    mmwave_dir = oneDrivePath / "<MMWAVE-DATA-LOCATION>"
 
     # Import latency data
     latency_dir = mmwave_dir / "latency"
@@ -113,9 +113,6 @@ def process_latency(raw_lat_data):
 
     subsix_lat_df = pd.DataFrame(latencies, columns=["Latency"])
 
-    df = pd.read_csv("output/csvs/new_df.csv")
-    subsix_lat_df = pd.concat([subsix_lat_df, df])
-
     subsix_jit_list = []
     for index, value in subsix_lat_df["Latency"].items():
         if index >= 1:
@@ -123,9 +120,6 @@ def process_latency(raw_lat_data):
             subsix_jit_list.append(abs(value - prev))
 
     subsix_jit_df = pd.DataFrame(subsix_jit_list, columns=["Jitter"])
-
-    # subsix_less_than_20 = subsix_jit_df[subsix_jit_df["Jitter"] < 20.0]
-    # print(f"Sub-6GHz Jitter <20ms: {(len(subsix_less_than_20.index) / len(subsix_jit_df.index))}")
 
     subsix_lat_stats = subsix_lat_df.describe().to_dict()
     subsix_lat_stats["Latency"]["skew"] = subsix_lat_df["Latency"].skew()
@@ -156,8 +150,6 @@ def process_latency(raw_lat_data):
     mmwave_lat_df = pd.concat(mmwave_df_list)
     mmwave_lat_df.rename(columns={"latency": "Latency"}, inplace=True)
 
-    mmwave_lat_df.to_csv("mmwave_lat_df.csv")
-
     mmwave_jit_list = []
     for index, value in mmwave_lat_df["Latency"].items():
         if index >= 1:
@@ -166,9 +158,6 @@ def process_latency(raw_lat_data):
 
     mmwave_jit_df = pd.DataFrame(mmwave_jit_list, columns=["Jitter"])
     mmwave_jit_df["Jitter"].replace(0.0, 0.000489, inplace=True)
-
-    # mmwave_less_than_20 = mmwave_jit_df[mmwave_jit_df["Jitter"] < 20.0]
-    # print(f"mmWave Jitter <20ms: {(len(mmwave_less_than_20.index) / len(mmwave_jit_df.index))}")
 
     mmwave_lat_stats = mmwave_lat_df.describe().to_dict()
     mmwave_lat_stats["Latency"]["skew"] = mmwave_lat_df["Latency"].skew()
@@ -262,7 +251,6 @@ def process_throughput(raw_thru_data):
         iperf_df = iperf_df.apply(lambda row: fix_rows(row, rate), axis=1)
         iperf_df["kilobits_per_second"] = iperf_df.apply(lambda row: row["bits_per_second"] / 1000, axis=1)
         iperf_df["megabits_per_second"] = iperf_df.apply(lambda row: row["bits_per_second"] / 1000000, axis=1)
-        # iperf_df = iperf_df[iperf_df["kilobits_per_second"] < 13.00]
 
         stats = iperf_df["megabits_per_second"].describe().to_dict()
         stats["skew"] = iperf_df["megabits_per_second"].skew()
@@ -297,7 +285,6 @@ def process_throughput(raw_thru_data):
                                                  ["50Mb", "100Mb", "150Mb", "500Mb", "800Mb"])
     mmwave_thru_df.sort_values("data_rate", inplace=True)
     mmwave_thru_df.reset_index(inplace=True)
-    mmwave_thru_df.to_csv("mmwave_thru_df.csv")
 
     mmwave_stats_dict = {}
     for data_rate in mmwave_thru_df["data_rate"].unique():
@@ -307,7 +294,6 @@ def process_throughput(raw_thru_data):
         mmwave_stats_dict[data_rate] = stats
 
     mmwave_stats_df = pd.DataFrame.from_dict(mmwave_stats_dict, orient="index")
-    mmwave_stats_df.to_csv("mmwave_stats_df.csv")
     mmwave_stats_df = mmwave_stats_df.reset_index(level=0)
 
     mmwave_proc_thru_data = {
@@ -605,20 +591,6 @@ app.layout = html.Div([
         dcc.Graph(id="sens_cdf", figure=sens_ecdf),
         html.Div(children=f"mmWave Data Throughput eCDF", className="menu-title"),
         dcc.Graph(id="mmWave_cdf", figure=mmwave_ecdf),
-        # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
-        #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[0]),
-        # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
-        #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[1]),
-        # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
-        #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[2]),
-        # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
-        #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[3]),
-        # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
-        #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[4]),
-        # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
-        #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[5]),
-        # html.Div(children=f"Object Data Throughput eCDF", className="menu-title"),
-        #     dcc.Graph(id="obj_cdf", figure=thru_ecdfs[6]),
 
         # Sub-6GHz Data Visuals
         # =====================================================
