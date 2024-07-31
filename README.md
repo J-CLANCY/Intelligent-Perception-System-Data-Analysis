@@ -5,7 +5,6 @@ This repository was created to analyse and visual the data behind my fourth pape
 ## Project Structure
 
 ```
-├── "".idea"" => Config from PyCharm  
 ├── ""assets"" => Images and CSS for the Python wrapped web app known as Dash.
 ├── ""config"" => Contains config for the project.
 ├── ""output"" => Contains the images/figure outted by the project.
